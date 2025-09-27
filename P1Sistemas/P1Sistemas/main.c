@@ -5,13 +5,13 @@
  * Author : dp877
  */ 
 
+#define F_CPU 16000000UL        // Frecuencia del cristal 16MHz
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#define F_CPU 16000000UL        // Frecuencia del cristal 16MHz
 
 // Definición de pines para ADC0831 en ATmega328P
 #define ADC_CS_PORT   PORTC    // Puerto C
