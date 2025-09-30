@@ -3,8 +3,8 @@ import time
 
 def main():
     # Configuración para VSPE COM2
-    puerto = 'COM2'  # Puerto virtual de VSPE
-    baudrate = 9600
+    puerto = 'COM'  # Puerto virtual de VSPE
+    baudrate = 2400
     
     try:
         # Conectar al puerto COM2
@@ -32,4 +32,4 @@ def main():
             print("Conexión cerrada")
 
 if __name__ == "__main__":
-    main()
+    main()  
