@@ -13,6 +13,9 @@
 #define CLK_PIN PD4    // Clock
 #define DO_PIN  PD3    // Data Out
 
+// Voltaje de referencia para el ADC (en mV)
+#define VREF 5000      // 5V = 5000mV
+
 // Función para inicializar USART
 void USART_Init(unsigned int ubrr) {
     UBRR0H = (unsigned char)(ubrr>>8);
@@ -61,6 +64,32 @@ void uint8_to_string(uint8_t value, char* str) {
         str[j] = str[i-j-1];
         str[i-j-1] = temp;
     }
+}
+
+// Función para convertir un valor de voltaje a una cadena (con 2 decimales)
+void voltage_to_string(uint16_t voltage_mv, char* str) {
+    // Separar en volts y milivolts
+    uint8_t volts = voltage_mv / 1000;
+    uint16_t millivolts = voltage_mv % 1000;
+    
+    // Convertir parte entera
+    uint8_to_string(volts, str);
+    
+    // Agregar punto decimal
+    char* p = str;
+    while (*p) p++; // Ir al final de la cadena
+    *p++ = '.';
+    
+    // Garantizar 3 dígitos para los milivolts (formato x.xxx V)
+    if (millivolts < 10) {
+        *p++ = '0';
+        *p++ = '0';
+    } else if (millivolts < 100) {
+        *p++ = '0';
+    }
+    
+    // Convertir parte decimal
+    uint8_to_string(millivolts, p);
 }
 
 // Función para leer un valor del ADC0831 (8 bits)
@@ -132,6 +161,10 @@ int main(void) {
         // Leer valor del ADC
         uint8_t adc_value = readADC0831();
         
+        // Calcular voltaje (en mV)
+        // ADC de 8 bits (0-255) => Volt = (valor * VREF) / 255
+        uint16_t voltage_mv = ((uint32_t)adc_value * VREF) / 255;
+        
         // Actualizar LEDs según valor leído
         PORTB = adc_value;
         
@@ -139,6 +172,12 @@ int main(void) {
         USART_TransmitString("Valor: ");
         uint8_to_string(adc_value, buffer);
         USART_TransmitString(buffer);
+        
+        // Mostrar voltaje
+        USART_TransmitString(" | Voltaje: ");
+        voltage_to_string(voltage_mv, buffer);
+        USART_TransmitString(buffer);
+        USART_TransmitString(" V");
         
         // Mostrar representación binaria de LEDs
         USART_TransmitString(" | LEDs: ");
