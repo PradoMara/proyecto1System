@@ -1,91 +1,62 @@
-#define F_CPU 16000000UL  // Debe estar definido antes de incluir delay.h
+// Usar 1MHz porque CLKDIV8 está habilitado (8MHz/8)
+#define F_CPU 1000000UL
+
 #include <avr/io.h>
 #include <util/delay.h>
 
-// Definición de pines para ADC0831 (corregidos según el esquemático)
-#define CS_PIN  PD2    // Chip Select - PIN 1 del ADC0831
-#define CLK_PIN PD4    // Clock - PIN 7 del ADC0831
-#define DO_PIN  PD3    // Data Out - PIN 6 del ADC0831
+// Recalcular para asegurar la precisión del baud rate
+#define BAUD 2400
+#define MYUBRR (F_CPU/16/BAUD-1)
 
-// Función para leer un valor del ADC0831 (8 bits) - protocolo revisado
-uint8_t readADC0831(void) {
-    uint8_t value = 0;
-    
-    // Comenzar la conversión (CS a bajo)
-    PORTD &= ~(1 << CS_PIN);
-    _delay_us(10);  // Mayor delay para estabilidad
-    
-    // Primer pulso de reloj para iniciar conversión
-    PORTD |= (1 << CLK_PIN);
-    _delay_us(10);
-    PORTD &= ~(1 << CLK_PIN);
-    _delay_us(10);
-    
-    // El primer bit es nulo en ADC0831, lo ignoramos
-    PORTD |= (1 << CLK_PIN);
-    _delay_us(10);
-    PORTD &= ~(1 << CLK_PIN);
-    _delay_us(10);
-    
-    // Leer los 8 bits, empezando por el MSB
-    for (int i = 7; i >= 0; i--) {
-        // Generar pulso de reloj
-        PORTD |= (1 << CLK_PIN);
-        _delay_us(10);
-        
-        // Leer el bit de datos
-        if (PIND & (1 << DO_PIN))
-            value |= (1 << i);
-            
-        PORTD &= ~(1 << CLK_PIN);
-        _delay_us(10);
-    }
-    
-    // Finalizar la conversión (CS a alto)
-    PORTD |= (1 << CS_PIN);
-    
-    return value;
+// Función para inicializar USART
+void USART_Init(unsigned int ubrr) {
+    // Configurar baud rate
+    UBRR0H = (unsigned char)(ubrr>>8);
+    UBRR0L = (unsigned char)ubrr;
+
+    // Habilitar transmisor
+    UCSR0B = (1<<TXEN0);
+
+    // Configurar formato: 8 bits de datos, 1 bit de stop, sin paridad
+    UCSR0C = (1<<UCSZ01) | (1<<UCSZ00);
 }
 
-// Función para actualizar el LED-BARGRAPH
-void updateLEDs(uint8_t value) {
-    // Mapear el valor del ADC (0-255) a los LEDs
-    // Si el valor es 0, todos apagados
-    // Si el valor es 255, todos encendidos
-    
-    // Establece directamente los bits para los LEDs
-    PORTB = value;
+// Función para transmitir un carácter
+void USART_Transmit(unsigned char data) {
+    // Esperar a que el buffer de transmisión esté vacío
+    while (!(UCSR0A & (1<<UDRE0)));
+
+    // Poner datos en el buffer de transmisión
+    UDR0 = data;
+}
+
+// Función para enviar una cadena de caracteres
+void USART_TransmitString(char* str) {
+    while (*str) {
+        USART_Transmit(*str++);
+    }
 }
 
 int main(void) {
-    // Configurar los pines del ADC como salidas/entradas
-    DDRD |= (1 << CS_PIN) | (1 << CLK_PIN);  // CS y CLK como salidas
-    DDRD &= ~(1 << DO_PIN);                 // DO como entrada
-    PORTD |= (1 << DO_PIN);                 // Activar pull-up en DO
+    // Configurar PORTB como salida para LEDs
+    DDRB = 0xFF;
+    PORTB = 0x55; // Patrón alternado para verificar actividad
     
-    // Establecer estados iniciales
-    PORTD |= (1 << CS_PIN);   // CS inicialmente en alto
-    PORTD &= ~(1 << CLK_PIN); // CLK inicialmente en bajo
+    // Inicializar USART con valor calculado correctamente
+    USART_Init(MYUBRR);
     
-    // Configurar todo el Puerto B como salida para los LEDs
-    DDRB = 0xFF;  // 0xFF = 0b11111111 (todos los pines como salida)
+    // Retardo inicial para estabilización
+    _delay_ms(1000);
     
-    // Inicializar LEDs apagados
-    PORTB = 0x00;
-    
-    // Esperar un poco al inicio para que todo se estabilice
-    _delay_ms(100);
-    
-    // Bucle principal
     while (1) {
-        // Leer valor del ADC (0-255)
-        uint8_t adc_value = readADC0831();
+        // Enviar mensaje "Hola mundo"
+        USART_TransmitString("Hola mundo\r\n");
         
-        // Actualizar LEDs según el valor leído
-        updateLEDs(adc_value);
+        // Alternar LEDs para indicar actividad
+        PORTB = ~PORTB;
         
-        // Pequeño retardo
-        _delay_ms(50);
+        // Esperar un segundo antes de enviar de nuevo
+        _delay_ms(1000);
     }
     
     return 0;
